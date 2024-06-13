@@ -53,8 +53,8 @@
 #include "FutharkStream.h"
 #endif
 
-// Default size of 2^25
-int ARRAY_SIZE = 33554432;
+// Default size of 10.5GB
+int ARRAY_SIZE = 1308622848;
 unsigned int num_times = 100;
 unsigned int deviceIndex = 0;
 bool use_float = false;
