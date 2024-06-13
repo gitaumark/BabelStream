@@ -35,6 +35,7 @@ class CUDAStream : public Stream<T>
 
     // Number of blocks for dot kernel
     int dot_num_blocks;
+    int num_blocks;
 
   public:
 

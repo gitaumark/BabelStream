@@ -57,6 +57,7 @@ CUDAStream<T>::CUDAStream(const int ARRAY_SIZE, const int device_index)
   cudaGetDeviceProperties(&props, device_index);
   check_error();
   dot_num_blocks = props.multiProcessorCount * 4;
+  num_blocks = props.multiProcessorCount * 8;
 
   // Allocate the host array for partial sums for dot kernels
   sums = (T*)malloc(sizeof(T) * dot_num_blocks);
@@ -163,66 +164,71 @@ void CUDAStream<T>::read_arrays(std::vector<T>& a, std::vector<T>& b, std::vecto
 
 
 template <typename T>
-__global__ void copy_kernel(const T * a, T * c)
+__global__ void copy_kernel(const T * a, T * c, uint array_size)
 {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  c[i] = a[i];
+  int i = blockDim.x * blockIdx.x + threadIdx.x;
+  for (; i < array_size; i += blockDim.x*gridDim.x)
+    c[i] = a[i];
 }
 
 template <class T>
 void CUDAStream<T>::copy()
 {
-  copy_kernel<<<array_size/TBSIZE, TBSIZE>>>(d_a, d_c);
+  copy_kernel<<<num_blocks, TBSIZE>>>(d_a, d_c, array_size);
   check_error();
   cudaDeviceSynchronize();
   check_error();
 }
 
 template <typename T>
-__global__ void mul_kernel(T * b, const T * c)
+__global__ void mul_kernel(T * b, const T * c, uint array_size)
 {
   const T scalar = startScalar;
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  b[i] = scalar * c[i];
+  int i = blockDim.x * blockIdx.x + threadIdx.x;
+  for (; i < array_size; i += blockDim.x*gridDim.x)
+    b[i] = scalar * c[i];
 }
 
 template <class T>
 void CUDAStream<T>::mul()
 {
-  mul_kernel<<<array_size/TBSIZE, TBSIZE>>>(d_b, d_c);
+  mul_kernel<<<num_blocks, TBSIZE>>>(d_b, d_c, array_size);
   check_error();
   cudaDeviceSynchronize();
   check_error();
 }
 
 template <typename T>
-__global__ void add_kernel(const T * a, const T * b, T * c)
+__global__ void add_kernel(const T * a, const T * b, T * c, uint array_size)
 {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  c[i] = a[i] + b[i];
+  int i = blockDim.x * blockIdx.x + threadIdx.x;
+  for (; i < array_size; i += blockDim.x*gridDim.x)
+    c[i] = a[i] + b[i];
 }
 
 template <class T>
 void CUDAStream<T>::add()
 {
-  add_kernel<<<array_size/TBSIZE, TBSIZE>>>(d_a, d_b, d_c);
+  add_kernel<<<num_blocks, TBSIZE>>>(d_a, d_b, d_c, array_size);
   check_error();
   cudaDeviceSynchronize();
   check_error();
 }
 
 template <typename T>
-__global__ void triad_kernel(T * a, const T * b, const T * c)
+__global__ void triad_kernel(T * a, const T * b, const T * c, uint array_size)
 {
   const T scalar = startScalar;
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  a[i] = b[i] + scalar * c[i];
+  int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+  for (; i < array_size; i += blockDim.x*gridDim.x)
+    a[i] = b[i] + scalar * c[i];
 }
 
 template <class T>
 void CUDAStream<T>::triad()
 {
-  triad_kernel<<<array_size/TBSIZE, TBSIZE>>>(d_a, d_b, d_c);
+  triad_kernel<<<num_blocks, TBSIZE>>>(d_a, d_b, d_c, array_size);
   check_error();
   cudaDeviceSynchronize();
   check_error();
